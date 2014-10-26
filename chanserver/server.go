@@ -2,10 +2,12 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os/exec"
 	"syscall"
 
@@ -32,10 +34,6 @@ type CommandResponse struct {
 func main() {
 	crypto.Experiment()
 
-	// cert := "certs/server.crt"
-	// key := "certs/server.key"
-
-	// keyPair, err := tls.LoadX509KeyPair(cert, key)
 	keyPair, err := transport.GenerateX509KeyPair("server")
 	if err != nil {
 		fmt.Printf("GenerateX509KeyPair: ")
@@ -48,8 +46,40 @@ func main() {
 		Certificates:       []tls.Certificate{*keyPair},
 		MinVersion:         tls.VersionTLS10,
 	}
+
+	go runWebServer()
 	runRexecServer(tlsConfig)
 
+}
+
+func handshakeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	type HandshakeMessage struct {
+		Nonce, SealedCertSignature []byte
+	}
+
+	dec := json.NewDecoder(r.Body)
+	var m HandshakeMessage
+	if err := dec.Decode(&m); err != nil {
+		log.Printf("JSON decoding of message failed: %s", err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Got message: %v", m)
+	log.Printf("Nonce: %s", m.Nonce)
+	log.Printf("Sig: %s", m.SealedCertSignature)
+	w.Write([]byte(":)"))
+	// body := ioutil.ReadAll(r.Body)
+
+}
+
+func runWebServer() {
+	http.HandleFunc("/api/v1/handshake", handshakeHandler)
+	http.ListenAndServe("localhost:9322", nil)
 }
 
 func runRexecServer(tlsConfig *tls.Config) {
