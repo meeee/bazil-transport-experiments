@@ -11,6 +11,8 @@ import (
 
 	"github.com/docker/libchan"
 	"github.com/docker/libchan/spdy"
+
+	"./transport"
 )
 
 type RemoteCommand struct {
@@ -26,29 +28,23 @@ type CommandResponse struct {
 	Status int
 }
 
-func TestAuthenticator(conn net.Conn) error {
-	tlsConn := conn.(*tls.Conn)
-	tlsConn.Handshake()
-	state := tlsConn.ConnectionState()
-	peerCerts := state.PeerCertificates
-	fmt.Printf("TestAuthenticator: %T: ConnectionState: %v\nPeer Certs: %d\n", conn, state, len(peerCerts))
-	return nil
-}
-
 func main() {
-	cert := "certs/server.crt"
-	key := "certs/server.key"
-
+	// cert := "certs/server.crt"
+	// key := "certs/server.key"
 	var listener net.Listener
 
-	tlsCert, err := tls.LoadX509KeyPair(cert, key)
+	// keyPair, err := tls.LoadX509KeyPair(cert, key)
+	keyPair, err := transport.GenerateX509KeyPair("server")
 	if err != nil {
+		fmt.Printf("GenerateX509KeyPair: ")
 		log.Fatal(err)
 	}
 
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
-		Certificates:       []tls.Certificate{tlsCert},
+		ClientAuth:         tls.RequireAnyClientCert,
+		Certificates:       []tls.Certificate{*keyPair},
+		MinVersion:         tls.VersionTLS10,
 	}
 
 	listener, err = tls.Listen("tcp", "localhost:9323", tlsConfig)
@@ -56,7 +52,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tl, err := spdy.NewTransportListener(listener, TestAuthenticator)
+	tl, err := spdy.NewTransportListener(listener, transport.TestAuthenticator)
 	if err != nil {
 		log.Fatal(err)
 	}

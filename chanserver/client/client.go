@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	// "fmt"
 	"io"
 	"log"
 	"net"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/docker/libchan"
 	"github.com/docker/libchan/spdy"
+
+	"frister.net/experiments/chanserver/transport"
 )
 
 type RemoteCommand struct {
@@ -32,17 +35,35 @@ func main() {
 	var client net.Conn
 	var err error
 
-	client, err = tls.Dial("tcp", "127.0.0.1:9323", &tls.Config{InsecureSkipVerify: true})
+	cert := "../certs/client.crt"
+	key := "../certs/client.key"
 
+	keyPair, err := tls.LoadX509KeyPair(cert, key)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	transport, err := spdy.NewClientTransport(client)
+	certs := []tls.Certificate{keyPair}
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS10,
+		Certificates:       certs,
+	}
+	client, err = tls.Dial("tcp", "127.0.0.1:9323", tlsConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
-	sender, err := transport.NewSendChannel()
+
+	if transport.TestAuthenticator(client) != nil {
+		log.Fatal(err)
+	}
+
+	transport_, err := spdy.NewClientTransport(client)
+	if err != nil {
+		log.Fatal(err)
+	}
+	sender, err := transport_.NewSendChannel()
 	if err != nil {
 		log.Fatal(err)
 	}
