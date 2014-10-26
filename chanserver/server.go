@@ -12,7 +12,8 @@ import (
 	"github.com/docker/libchan"
 	"github.com/docker/libchan/spdy"
 
-	"./transport"
+	"frister.net/experiments/chanserver/crypto"
+	"frister.net/experiments/chanserver/transport"
 )
 
 type RemoteCommand struct {
@@ -29,9 +30,10 @@ type CommandResponse struct {
 }
 
 func main() {
+	crypto.Experiment()
+
 	// cert := "certs/server.crt"
 	// key := "certs/server.key"
-	var listener net.Listener
 
 	// keyPair, err := tls.LoadX509KeyPair(cert, key)
 	keyPair, err := transport.GenerateX509KeyPair("server")
@@ -46,8 +48,14 @@ func main() {
 		Certificates:       []tls.Certificate{*keyPair},
 		MinVersion:         tls.VersionTLS10,
 	}
+	runRexecServer(tlsConfig)
 
-	listener, err = tls.Listen("tcp", "localhost:9323", tlsConfig)
+}
+
+func runRexecServer(tlsConfig *tls.Config) {
+	var listener net.Listener
+
+	listener, err := tls.Listen("tcp", "localhost:9323", tlsConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
