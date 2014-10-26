@@ -58,7 +58,8 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type HandshakeMessage struct {
-		Nonce, SealedCertSignature []byte
+		Nonce               *[24]byte
+		SealedCertSignature []byte
 	}
 
 	dec := json.NewDecoder(r.Body)

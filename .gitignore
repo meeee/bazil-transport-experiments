@@ -1,3 +1,5 @@
 chanserver/client/client
 chanserver/server
 flatbuffers/main
+chanserver/certs/client.nacl.json
+chanserver/certs/server.nacl.json

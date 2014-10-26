@@ -3,6 +3,8 @@ package main
 import (
 	"crypto/tls"
 	// "fmt"
+	"crypto/x509"
+	"encoding/json"
 	"io"
 	"log"
 	"net"
@@ -11,6 +13,7 @@ import (
 	"github.com/docker/libchan"
 	"github.com/docker/libchan/spdy"
 
+	"frister.net/experiments/chanserver/crypto"
 	"frister.net/experiments/chanserver/transport"
 )
 
@@ -35,15 +38,46 @@ func main() {
 	var client net.Conn
 	var err error
 
-	cert := "../certs/client.crt"
-	key := "../certs/client.key"
+	certFile := "../certs/client.crt"
+	keyFile := "../certs/client.key"
 
-	keyPair, err := tls.LoadX509KeyPair(cert, key)
+	tlsKeyPair, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("tls.LoadX509KeyPair failed: %v", err)
 	}
 
-	certs := []tls.Certificate{keyPair}
+	cert, err := x509.ParseCertificate(tlsKeyPair.Certificate[0])
+	if err != nil {
+		log.Fatalf("x509.ParseCertificate failed: %v", err)
+	}
+
+	ownPair, err := crypto.LoadOrCreateKeyPair("../certs/client.nacl.json")
+	if err != nil {
+		log.Fatalf("crypto.LoadOrCreateKeyPair failed for client: %v", err)
+	}
+	peerPair, err := crypto.LoadOrCreateKeyPair("../certs/server.nacl.json")
+	if err != nil {
+		log.Fatalf("crypto.LoadOrCreateKeyPair failed for server: %v", err)
+	}
+
+	box, nonce, err := crypto.Seal(cert.Signature, peerPair.PublicKey, ownPair.PrivateKey)
+	if err != nil {
+		log.Fatalf("crypto.Seal failed: %v", err)
+	}
+
+	type HandshakeMessage struct {
+		Nonce               *[24]byte
+		SealedCertSignature []byte
+	}
+	handshakeMessage := HandshakeMessage{nonce, box}
+	enc, err := json.Marshal(handshakeMessage)
+	if err != nil {
+		log.Fatalf("json.Marshall failed: %v", err)
+	}
+
+	log.Printf("Marshalled handshake message: %s", enc)
+
+	certs := []tls.Certificate{tlsKeyPair}
 
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
