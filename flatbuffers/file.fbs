@@ -1,0 +1,8 @@
+namespace flatbuffers;
+
+table File {
+    name:string;
+    size:ulong;
+}
+
+root_type File;
