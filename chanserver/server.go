@@ -60,6 +60,7 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 	type HandshakeMessage struct {
 		Nonce               *[24]byte
 		SealedCertSignature []byte
+		PeerId              string
 	}
 
 	dec := json.NewDecoder(r.Body)
@@ -71,8 +72,9 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Got message: %v", m)
-	log.Printf("Nonce: %s", m.Nonce)
-	log.Printf("Sig: %s", m.SealedCertSignature)
+	log.Printf("PeerId: %s", m.PeerId)
+	log.Printf("Nonce: %v", m.Nonce)
+	log.Printf("Sig: %v", m.SealedCertSignature)
 	w.Write([]byte(":)"))
 	// body := ioutil.ReadAll(r.Body)
 

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
-	// "fmt"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 
 	"github.com/docker/libchan"
@@ -38,6 +41,8 @@ func main() {
 	var client net.Conn
 	var err error
 
+	ownId := "client"
+	serverId := "server"
 	certFile := "../certs/client.crt"
 	keyFile := "../certs/client.key"
 
@@ -51,11 +56,11 @@ func main() {
 		log.Fatalf("x509.ParseCertificate failed: %v", err)
 	}
 
-	ownPair, err := crypto.LoadOrCreateKeyPair("../certs/client.nacl.json")
+	ownPair, err := crypto.LoadOrCreateKeyPair(keyPairPath(ownId))
 	if err != nil {
 		log.Fatalf("crypto.LoadOrCreateKeyPair failed for client: %v", err)
 	}
-	peerPair, err := crypto.LoadOrCreateKeyPair("../certs/server.nacl.json")
+	peerPair, err := crypto.LoadOrCreateKeyPair(keyPairPath(serverId))
 	if err != nil {
 		log.Fatalf("crypto.LoadOrCreateKeyPair failed for server: %v", err)
 	}
@@ -65,17 +70,9 @@ func main() {
 		log.Fatalf("crypto.Seal failed: %v", err)
 	}
 
-	type HandshakeMessage struct {
-		Nonce               *[24]byte
-		SealedCertSignature []byte
-	}
-	handshakeMessage := HandshakeMessage{nonce, box}
-	enc, err := json.Marshal(handshakeMessage)
-	if err != nil {
-		log.Fatalf("json.Marshall failed: %v", err)
-	}
+	doHandshake(nonce, box, ownId)
 
-	log.Printf("Marshalled handshake message: %s", enc)
+	// log.Printf("Marshalled handshake message: %s", enc)
 
 	certs := []tls.Certificate{tlsKeyPair}
 
@@ -125,4 +122,30 @@ func main() {
 	}
 
 	os.Exit(response.Status)
+}
+
+func keyPairPath(peerId string) string {
+	return fmt.Sprintf("../certs/%s.nacl.json", peerId)
+}
+
+func doHandshake(nonce *[24]byte, box []byte, ownId string) {
+	type HandshakeMessage struct {
+		Nonce               *[24]byte
+		SealedCertSignature []byte
+		PeerId              string
+	}
+	handshakeMessage := HandshakeMessage{nonce, box, ownId}
+
+	enc, err := json.Marshal(handshakeMessage)
+	if err != nil {
+		log.Fatalf("json.Marshall failed: %v", err)
+	}
+
+	resp, err := http.Post("http://localhost:9322/api/v1/handshake",
+		"application/json",
+		bytes.NewReader(enc))
+
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	log.Printf("HTTP status: %d body: %s", resp.StatusCode, body)
 }
