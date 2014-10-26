@@ -2,7 +2,7 @@ package main
 
 import (
 	"crypto/tls"
-	"encoding/json"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log"
@@ -31,6 +31,8 @@ type CommandResponse struct {
 	Status int
 }
 
+type PeerMap map[string][]byte
+
 func main() {
 	crypto.Experiment()
 
@@ -47,45 +49,46 @@ func main() {
 		MinVersion:         tls.VersionTLS10,
 	}
 
-	go runWebServer()
-	runRexecServer(tlsConfig)
+	cert, err := x509.ParseCertificate(keyPair.Certificate[0])
+	if err != nil {
+		log.Fatalf("x509.ParseCertificate failed: %v", err)
+	}
+
+	peers := make(PeerMap)
+
+	go runWebServer(peers, cert.Signature)
+	runRexecServer(tlsConfig, peers)
 
 }
 
-func handshakeHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+func runWebServer(peers PeerMap, tlsSignature []byte) {
+
+	handshakeHandler := func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		m, err := crypto.OpenHandshakeMessage("server", "client", r.Body)
+		if err != nil {
+			log.Printf("Opening handshake message failed: %s", err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		log.Printf("Got message: %v", m)
+		log.Printf("PeerId: %s", m.PeerId)
+		log.Printf("Nonce: %v", m.Nonce)
+		log.Printf("Sig: %v", m.SealedCertSignature)
+
+		w.Write([]byte(":)"))
 	}
-	type HandshakeMessage struct {
-		Nonce               *[24]byte
-		SealedCertSignature []byte
-		PeerId              string
-	}
 
-	dec := json.NewDecoder(r.Body)
-	var m HandshakeMessage
-	if err := dec.Decode(&m); err != nil {
-		log.Printf("JSON decoding of message failed: %s", err.Error())
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	log.Printf("Got message: %v", m)
-	log.Printf("PeerId: %s", m.PeerId)
-	log.Printf("Nonce: %v", m.Nonce)
-	log.Printf("Sig: %v", m.SealedCertSignature)
-	w.Write([]byte(":)"))
-	// body := ioutil.ReadAll(r.Body)
-
-}
-
-func runWebServer() {
 	http.HandleFunc("/api/v1/handshake", handshakeHandler)
 	http.ListenAndServe("localhost:9322", nil)
 }
 
-func runRexecServer(tlsConfig *tls.Config) {
+func runRexecServer(tlsConfig *tls.Config, peers PeerMap) {
 	var listener net.Listener
 
 	listener, err := tls.Listen("tcp", "localhost:9323", tlsConfig)
