@@ -1,11 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -56,23 +53,10 @@ func main() {
 		log.Fatalf("x509.ParseCertificate failed: %v", err)
 	}
 
-	ownPair, err := crypto.LoadOrCreateKeyPair(keyPairPath(ownId))
+	err = doHandshake(ownId, serverId, cert.Signature)
 	if err != nil {
-		log.Fatalf("crypto.LoadOrCreateKeyPair failed for client: %v", err)
+		log.Fatalf("Handshake failed: %v", err)
 	}
-	peerPair, err := crypto.LoadOrCreateKeyPair(keyPairPath(serverId))
-	if err != nil {
-		log.Fatalf("crypto.LoadOrCreateKeyPair failed for server: %v", err)
-	}
-
-	box, nonce, err := crypto.Seal(cert.Signature, peerPair.PublicKey, ownPair.PrivateKey)
-	if err != nil {
-		log.Fatalf("crypto.Seal failed: %v", err)
-	}
-
-	doHandshake(nonce, box, ownId)
-
-	// log.Printf("Marshalled handshake message: %s", enc)
 
 	certs := []tls.Certificate{tlsKeyPair}
 
@@ -124,28 +108,22 @@ func main() {
 	os.Exit(response.Status)
 }
 
-func keyPairPath(peerId string) string {
-	return fmt.Sprintf("../certs/%s.nacl.json", peerId)
-}
-
-func doHandshake(nonce *[24]byte, box []byte, ownId string) {
-	type HandshakeMessage struct {
-		Nonce               *[24]byte
-		SealedCertSignature []byte
-		PeerId              string
-	}
-	handshakeMessage := HandshakeMessage{nonce, box, ownId}
-
-	enc, err := json.Marshal(handshakeMessage)
+func doHandshake(ownId string, peerId string, signature []byte) error {
+	msgReader, err := crypto.BuildHandshakeMessage(ownId, peerId, signature)
 	if err != nil {
-		log.Fatalf("json.Marshall failed: %v", err)
+		return err
 	}
 
 	resp, err := http.Post("http://localhost:9322/api/v1/handshake",
 		"application/json",
-		bytes.NewReader(enc))
+		msgReader)
+
+	if err != nil {
+		return err
+	}
 
 	body, _ := ioutil.ReadAll(resp.Body)
 
 	log.Printf("HTTP status: %d body: %s", resp.StatusCode, body)
+	return nil
 }

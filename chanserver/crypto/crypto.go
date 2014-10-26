@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -97,4 +98,21 @@ func LoadOrCreateKeyPair(filename string) (*KeyPair, error) {
 		}
 	}
 	return keyPair, nil
+}
+
+func SealDataForPeer(ownId string, peerId string, data []byte) ([]byte, *[24]byte, error) {
+	ownPair, err := LoadOrCreateKeyPair(keyPairPath(ownId))
+	if err != nil {
+		return nil, nil, err
+	}
+	peerPair, err := LoadOrCreateKeyPair(keyPairPath(peerId))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return Seal(data, peerPair.PublicKey, ownPair.PrivateKey)
+}
+
+func keyPairPath(peerId string) string {
+	return fmt.Sprintf("../certs/%s.nacl.json", peerId)
 }
