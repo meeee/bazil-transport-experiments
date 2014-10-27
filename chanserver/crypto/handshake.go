@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 )
@@ -12,7 +11,7 @@ type handshakeMessage struct {
 	PeerId              string
 }
 
-func BuildHandshakeMessage(ownId string, peerId string, signature []byte) (io.Reader, error) {
+func BuildHandshakeMessage(ownId string, peerId string, signature []byte) ([]byte, error) {
 	sealed, nonce, err := SealDataForPeer(ownId, peerId, signature)
 	if err != nil {
 		return nil, err
@@ -25,7 +24,7 @@ func BuildHandshakeMessage(ownId string, peerId string, signature []byte) (io.Re
 		return nil, err
 	}
 
-	return bytes.NewReader(j), nil
+	return j, nil
 }
 
 func OpenHandshakeMessage(ownId string, data io.Reader) (string, []byte, error) {

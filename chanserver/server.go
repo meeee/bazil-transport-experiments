@@ -76,7 +76,13 @@ func runWebServer(peers *transport.Peers, tlsSignature []byte) {
 
 		peers.Update(peerId, signature)
 
-		w.Write([]byte(":)"))
+		msg, err := crypto.BuildHandshakeMessage("server", peerId, tlsSignature)
+		if err != nil {
+			log.Printf("BuildHandshakeMessage failed: %v", err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(msg)
 	}
 
 	http.HandleFunc("/api/v1/handshake", handshakeHandler)

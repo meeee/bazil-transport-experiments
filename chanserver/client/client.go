@@ -1,11 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -41,6 +41,7 @@ func main() {
 
 	ownId := "client"
 	serverId := "server"
+	peers := transport.NewPeers()
 
 	tlsKeyPair, err := transport.GenerateX509KeyPair("client")
 	if err != nil {
@@ -53,7 +54,7 @@ func main() {
 		log.Fatalf("x509.ParseCertificate failed: %v", err)
 	}
 
-	err = doHandshake(ownId, serverId, cert.Signature)
+	err = doHandshake(ownId, serverId, cert.Signature, peers)
 	if err != nil {
 		log.Fatalf("Handshake failed: %v", err)
 	}
@@ -67,8 +68,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	peers := transport.NewPeers()
 
 	if transport.SignatureAuthenticator(client, peers) != nil {
 		log.Fatal(err)
@@ -108,8 +107,8 @@ func main() {
 	os.Exit(response.Status)
 }
 
-func doHandshake(ownId string, peerId string, signature []byte) error {
-	msgReader, err := crypto.BuildHandshakeMessage(ownId, peerId, signature)
+func doHandshake(ownId string, peerId string, signature []byte, peers *transport.Peers) error {
+	msg, err := crypto.BuildHandshakeMessage(ownId, peerId, signature)
 	if err != nil {
 		log.Printf("BuildHandshakeMessage failed: %v", err)
 		return err
@@ -117,7 +116,7 @@ func doHandshake(ownId string, peerId string, signature []byte) error {
 
 	resp, err := http.Post("http://localhost:9322/api/v1/handshake",
 		"application/json",
-		msgReader)
+		bytes.NewReader(msg))
 
 	if err != nil {
 		return err
@@ -125,8 +124,17 @@ func doHandshake(ownId string, peerId string, signature []byte) error {
 		return fmt.Errorf("Handshake request failed: %s", resp.Status)
 	}
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	receivedPeerId, peerSignature, err := crypto.OpenHandshakeMessage(ownId, resp.Body)
+	if err != nil {
+		return fmt.Errorf("Opening handshake message failed: %s", err.Error())
+	}
 
-	log.Printf("HTTP status: %d body: %s", resp.StatusCode, body)
+	if receivedPeerId != peerId {
+		return fmt.Errorf("doHandshake: Received peer id ('%s') is different from expected ('%s')",
+			receivedPeerId, peerId)
+	}
+
+	peers.Update(peerId, peerSignature)
+
 	return nil
 }
