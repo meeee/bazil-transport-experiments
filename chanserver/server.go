@@ -31,8 +31,6 @@ type CommandResponse struct {
 	Status int
 }
 
-type PeerMap map[string][]byte
-
 func main() {
 	keyPair, err := transport.GenerateX509KeyPair("server")
 	if err != nil {
@@ -52,14 +50,14 @@ func main() {
 		log.Fatalf("x509.ParseCertificate failed: %v", err)
 	}
 
-	peers := make(PeerMap)
+	peers := transport.NewPeers()
 
 	go runWebServer(peers, cert.Signature)
 	runRexecServer(tlsConfig, peers)
 
 }
 
-func runWebServer(peers PeerMap, tlsSignature []byte) {
+func runWebServer(peers *transport.Peers, tlsSignature []byte) {
 
 	handshakeHandler := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
@@ -76,6 +74,8 @@ func runWebServer(peers PeerMap, tlsSignature []byte) {
 
 		log.Printf("Got handshake from '%v' with signature '%x'", peerId, signature)
 
+		peers.Update(peerId, signature)
+
 		w.Write([]byte(":)"))
 	}
 
@@ -83,7 +83,7 @@ func runWebServer(peers PeerMap, tlsSignature []byte) {
 	http.ListenAndServe("localhost:9322", nil)
 }
 
-func runRexecServer(tlsConfig *tls.Config, peers PeerMap) {
+func runRexecServer(tlsConfig *tls.Config, peers *transport.Peers) {
 	var listener net.Listener
 
 	listener, err := tls.Listen("tcp", "localhost:9323", tlsConfig)
@@ -91,7 +91,11 @@ func runRexecServer(tlsConfig *tls.Config, peers PeerMap) {
 		log.Fatal(err)
 	}
 
-	tl, err := spdy.NewTransportListener(listener, transport.TestAuthenticator)
+	authenticator := func(conn net.Conn) error {
+		return transport.SignatureAuthenticator(conn, peers)
+	}
+
+	tl, err := spdy.NewTransportListener(listener, authenticator)
 	if err != nil {
 		log.Fatal(err)
 	}

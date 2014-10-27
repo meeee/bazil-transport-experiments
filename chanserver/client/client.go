@@ -41,12 +41,11 @@ func main() {
 
 	ownId := "client"
 	serverId := "server"
-	certFile := "certs/client.crt"
-	keyFile := "certs/client.key"
 
-	tlsKeyPair, err := tls.LoadX509KeyPair(certFile, keyFile)
+	tlsKeyPair, err := transport.GenerateX509KeyPair("client")
 	if err != nil {
-		log.Fatalf("tls.LoadX509KeyPair failed: %v", err)
+		fmt.Printf("GenerateX509KeyPair: ")
+		log.Fatal(err)
 	}
 
 	cert, err := x509.ParseCertificate(tlsKeyPair.Certificate[0])
@@ -59,19 +58,19 @@ func main() {
 		log.Fatalf("Handshake failed: %v", err)
 	}
 
-	certs := []tls.Certificate{tlsKeyPair}
-
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
 		MinVersion:         tls.VersionTLS10,
-		Certificates:       certs,
+		Certificates:       []tls.Certificate{*tlsKeyPair},
 	}
 	client, err = tls.Dial("tcp", "127.0.0.1:9323", tlsConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if transport.TestAuthenticator(client) != nil {
+	peers := transport.NewPeers()
+
+	if transport.SignatureAuthenticator(client, peers) != nil {
 		log.Fatal(err)
 	}
 
