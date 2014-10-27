@@ -52,6 +52,8 @@ func main() {
 
 	peers := transport.NewPeers()
 
+	log.Printf("server running...")
+
 	go runWebServer(peers, cert.Signature)
 	runRexecServer(tlsConfig, peers)
 

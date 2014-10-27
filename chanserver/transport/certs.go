@@ -29,24 +29,14 @@ func GenerateX509KeyPair(commonName string) (*tls.Certificate, error) {
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		fmt.Printf("GenerateKey: ")
-		return nil, err
+		return nil, fmt.Errorf("GenerateKey: %v", err)
 	}
 	publicKey := &privateKey.PublicKey
 
-	fmt.Printf("publicKey (%T): %v\n", publicKey, publicKey)
-
 	certDer, err := x509.CreateCertificate(rand.Reader, template, template, publicKey, privateKey)
 	if err != nil {
-		fmt.Printf("CreateCertificate: ")
-		return nil, err
+		fmt.Errorf("CreateCertificate: %v", err)
 	}
-
-	// cert, err := x509.ParseCertificate(certDer)
-	// if err != nil {
-	// 	fmt.Printf("ParseCertificate: ")
-	// 	return nil, err
-	// }
 
 	return &tls.Certificate{
 		Certificate: [][]byte{certDer},

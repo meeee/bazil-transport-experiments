@@ -41,19 +41,15 @@ func SignatureAuthenticator(conn net.Conn, peers *Peers) error {
 	peerCerts := state.PeerCertificates
 
 	if len(peerCerts) != 1 {
-		return errors.New(
-			fmt.Sprintf("Expected exactly one peer certificate, got more or less: %v",
-				len(peerCerts)))
+		return fmt.Errorf("Expected exactly one peer certificate, got more or less: %v",
+			len(peerCerts))
 	}
 	peerCert := peerCerts[0]
 
-	fmt.Printf("SignatureAuthenticator: %T: ConnectionState: %v\n",
-		conn, state)
-
 	cn := peerCert.Subject.CommonName
 
-	fmt.Printf("CN: %s\n", cn)
-	fmt.Printf("Signature (%v): %x\n", peerCert.SignatureAlgorithm, peerCert.Signature)
+	log.Printf("SignatureAuthenticator: CN: '%s' Signature (%v): '%x'\n",
+		cn, peerCert.SignatureAlgorithm, peerCert.Signature)
 
 	expectedSig := peers.Signature(cn)
 
@@ -62,7 +58,7 @@ func SignatureAuthenticator(conn net.Conn, peers *Peers) error {
 		log.Print(errMsg)
 		return errors.New(errMsg)
 	} else if !bytes.Equal(expectedSig, peerCert.Signature) {
-		// FIXME constant-time comparison?
+		// TODO constant-time comparison?
 		errMsg := fmt.Sprintf("SignatureAuthenticator: Wrong signature for '%s', expected %v",
 			cn, expectedSig)
 		log.Print(errMsg)
