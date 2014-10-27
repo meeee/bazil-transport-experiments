@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"regexp"
 
@@ -16,33 +15,6 @@ import (
 type KeyPair struct {
 	PublicKey  *[32]byte
 	PrivateKey *[32]byte
-}
-
-func Experiment() {
-	publicKey1, privateKey1, err := box.GenerateKey(rand.Reader)
-	if err != nil {
-		log.Fatal(err)
-	}
-	publicKey2, privateKey2, err := box.GenerateKey(rand.Reader)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	message := []byte("Hello :)")
-	box, nonce, err := Seal(message, publicKey2, privateKey1)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("Sealed box: %x Nonce: %x", box, nonce)
-
-	plain, ok := Open(box, nonce, publicKey1, privateKey2)
-	if !ok {
-		log.Fatal(err)
-	}
-
-	log.Printf("Plain: %s", plain)
-
 }
 
 func Seal(message []byte, recipientPubKey *[32]byte, senderPrivKey *[32]byte) ([]byte, *[24]byte, error) {

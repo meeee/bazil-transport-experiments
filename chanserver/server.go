@@ -34,8 +34,6 @@ type CommandResponse struct {
 type PeerMap map[string][]byte
 
 func main() {
-	crypto.Experiment()
-
 	keyPair, err := transport.GenerateX509KeyPair("server")
 	if err != nil {
 		fmt.Printf("GenerateX509KeyPair: ")
