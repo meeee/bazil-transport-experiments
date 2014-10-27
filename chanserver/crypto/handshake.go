@@ -28,13 +28,17 @@ func BuildHandshakeMessage(ownId string, peerId string, signature []byte) (io.Re
 	return bytes.NewReader(j), nil
 }
 
-func OpenHandshakeMessage(ownId string, peerId string, data io.Reader) (*handshakeMessage, error) {
+func OpenHandshakeMessage(ownId string, data io.Reader) (string, []byte, error) {
 	dec := json.NewDecoder(data)
 
 	var m handshakeMessage
 	if err := dec.Decode(&m); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	return &m, nil
+	signature, err := OpenDataFromPeer(ownId, m.PeerId, m.SealedCertSignature, m.Nonce)
+	if err != nil {
+		return "", nil, err
+	}
+	return m.PeerId, signature, nil
 }

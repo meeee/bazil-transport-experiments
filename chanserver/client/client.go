@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -40,8 +41,8 @@ func main() {
 
 	ownId := "client"
 	serverId := "server"
-	certFile := "../certs/client.crt"
-	keyFile := "../certs/client.key"
+	certFile := "certs/client.crt"
+	keyFile := "certs/client.key"
 
 	tlsKeyPair, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
@@ -111,6 +112,7 @@ func main() {
 func doHandshake(ownId string, peerId string, signature []byte) error {
 	msgReader, err := crypto.BuildHandshakeMessage(ownId, peerId, signature)
 	if err != nil {
+		log.Printf("BuildHandshakeMessage failed: %v", err)
 		return err
 	}
 
@@ -120,6 +122,8 @@ func doHandshake(ownId string, peerId string, signature []byte) error {
 
 	if err != nil {
 		return err
+	} else if resp.StatusCode != 200 {
+		return fmt.Errorf("Handshake request failed: %s", resp.Status)
 	}
 
 	body, _ := ioutil.ReadAll(resp.Body)

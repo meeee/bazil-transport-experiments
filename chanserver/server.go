@@ -69,17 +69,14 @@ func runWebServer(peers PeerMap, tlsSignature []byte) {
 			return
 		}
 
-		m, err := crypto.OpenHandshakeMessage("server", "client", r.Body)
+		peerId, signature, err := crypto.OpenHandshakeMessage("server", r.Body)
 		if err != nil {
 			log.Printf("Opening handshake message failed: %s", err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		log.Printf("Got message: %v", m)
-		log.Printf("PeerId: %s", m.PeerId)
-		log.Printf("Nonce: %v", m.Nonce)
-		log.Printf("Sig: %v", m.SealedCertSignature)
+		log.Printf("Got handshake from '%v' with signature '%x'", peerId, signature)
 
 		w.Write([]byte(":)"))
 	}

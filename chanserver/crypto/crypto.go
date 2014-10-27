@@ -3,10 +3,12 @@ package crypto
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"regexp"
 
 	"code.google.com/p/go.crypto/nacl/box"
 )
@@ -100,19 +102,61 @@ func LoadOrCreateKeyPair(filename string) (*KeyPair, error) {
 	return keyPair, nil
 }
 
-func SealDataForPeer(ownId string, peerId string, data []byte) ([]byte, *[24]byte, error) {
-	ownPair, err := LoadOrCreateKeyPair(keyPairPath(ownId))
-	if err != nil {
-		return nil, nil, err
+// In contrast to LoadOrCreateKeyPair, this function gets peer IDs as input, not
+// file names
+// Returns key pairs in the same order as the provided keyIDs.
+func LoadOrCreatePeerKeyPairs(peerIds []string) ([]*KeyPair, error) {
+	keyPairs := make([]*KeyPair, len(peerIds))
+	for i, peerId := range peerIds {
+		filename, err := keyPairPath(peerId)
+		if err != nil {
+			return nil, err
+		}
+		pair, err := LoadOrCreateKeyPair(filename)
+		if err != nil {
+			return nil, err
+		}
+		keyPairs[i] = pair
 	}
-	peerPair, err := LoadOrCreateKeyPair(keyPairPath(peerId))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return Seal(data, peerPair.PublicKey, ownPair.PrivateKey)
+	return keyPairs, nil
 }
 
-func keyPairPath(peerId string) string {
-	return fmt.Sprintf("../certs/%s.nacl.json", peerId)
+func SealDataForPeer(ownId string, peerId string, data []byte) ([]byte, *[24]byte, error) {
+	peerIds := []string{ownId, peerId}
+
+	keyPairs, err := LoadOrCreatePeerKeyPairs(peerIds)
+	if err != nil {
+		return nil, nil, fmt.Errorf("SealDataForPeer: LoadOrCreatePeerKeyPairs failed: %v", err)
+	}
+
+	return Seal(data, keyPairs[1].PublicKey, keyPairs[0].PrivateKey)
+}
+
+func OpenDataFromPeer(ownId string, peerId string, sealed []byte, nonce *[24]byte) ([]byte, error) {
+	peerIds := []string{ownId, peerId}
+
+	keyPairs, err := LoadOrCreatePeerKeyPairs(peerIds)
+	if err != nil {
+		return nil, err
+	}
+
+	data, ok := Open(sealed, nonce, keyPairs[1].PublicKey, keyPairs[0].PrivateKey)
+	if !ok {
+		return nil, errors.New("crypto.OpenDataFromPeer: Failed to open sealed message")
+	}
+
+	return data, nil
+}
+
+func keyPairPath(peerId string) (string, error) {
+	if !peerIdAllowed(peerId) {
+		return "", errors.New(
+			fmt.Sprintf("crypto.keyPairPath: peer id contains not allowed value: '%v'", peerId))
+	}
+	return fmt.Sprintf("certs/%s.nacl.json", peerId), nil
+}
+
+func peerIdAllowed(peerId string) bool {
+	match, _ := regexp.MatchString("^[a-zA-Z0-9]+$", peerId)
+	return match
 }
