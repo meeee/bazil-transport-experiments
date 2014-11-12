@@ -14,8 +14,8 @@ import (
 	"github.com/docker/libchan"
 	"github.com/docker/libchan/spdy"
 
-	"frister.net/experiments/chanserver/crypto"
-	"frister.net/experiments/chanserver/transport"
+	"github.com/meeee/bazil-transport-experiments/crypto"
+	"github.com/meeee/bazil-transport-experiments/transport"
 )
 
 type RemoteCommand struct {
